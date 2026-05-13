@@ -1,0 +1,24 @@
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Local checkouts created by `make clone`
+.checkouts/
+
+# Local artifacts
+*.sb
+*.sbb
+*.pack
+run.jsonl
+*.attestation.json
+report.html
