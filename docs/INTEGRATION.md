@@ -5,7 +5,9 @@ together. Each recipe is a complete, runnable Python snippet (or shell
 sequence). They assume you have all three packages installed:
 
 ```bash
-pip install ragdoctor stepback flowwarden
+pip install "git+https://github.com/thehalleyyoung/ragdoctor.git"
+pip install "git+https://github.com/thehalleyyoung/stepback.git"
+pip install "git+https://github.com/thehalleyyoung/flowwarden.git"
 ```
 
 ---

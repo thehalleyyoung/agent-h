@@ -9,8 +9,10 @@ Runs a tiny agent that:
 This file is intentionally short and dependency-light. It uses
 in-memory toy data so it runs without any network calls.
 
-Install:
-    pip install ragdoctor stepback flowwarden
+Install (the three components aren't on PyPI yet):
+    pip install git+https://github.com/thehalleyyoung/ragdoctor.git
+    pip install git+https://github.com/thehalleyyoung/stepback.git
+    pip install git+https://github.com/thehalleyyoung/flowwarden.git
 
 Run:
     python examples/integrated_demo.py

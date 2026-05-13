@@ -25,8 +25,8 @@ clone:
 	done
 
 install: clone
-	pip install -e $(WORK)/stepback'[dev,shims]'
-	pip install -e $(WORK)/ragdoctor'[dev]'
+	pip install -e $(WORK)/stepback'[dev]'
+	pip install -e $(WORK)/ragdoctor
 	pip install -e $(WORK)/flowwarden
 
 test:

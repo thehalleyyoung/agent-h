@@ -102,22 +102,24 @@ in this repo.
 
 ## Quick install
 
-Each component is independently installable from PyPI (or its repo):
+The components aren't on PyPI yet. Install each from its GitHub repo:
 
 ```bash
-pip install ragdoctor stepback flowwarden
+pip install "git+https://github.com/thehalleyyoung/ragdoctor.git"
+pip install "git+https://github.com/thehalleyyoung/stepback.git"
+pip install "git+https://github.com/thehalleyyoung/flowwarden.git"
 ```
 
-…or from source for development:
+…or clone for development:
 
 ```bash
-git clone https://github.com/thehalleyyoung/ragdoctor && pip install -e ./ragdoctor[all]
-git clone https://github.com/thehalleyyoung/stepback  && pip install -e ./stepback[dev,shims]
+git clone https://github.com/thehalleyyoung/ragdoctor && pip install -e ./ragdoctor
+git clone https://github.com/thehalleyyoung/stepback  && pip install -e ./stepback
 git clone https://github.com/thehalleyyoung/flowwarden && pip install -e ./flowwarden
 ```
 
 The `Makefile` in this repo has `make clone`, `make install`, `make test`,
-and `make demo` targets that do the above against pinned commits.
+and `make demo` targets that automate the clone-and-editable-install flow.
 
 ---
 
