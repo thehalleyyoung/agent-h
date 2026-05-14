@@ -292,7 +292,48 @@ Two things to notice:
 
 ---
 
-## Two-tier rationale
+## Why finetuning here is different (the innovations compound)
+
+Every other "agent finetuning" framework treats the agent as a ReAct loop
+emitting linear `(thought, action, observation)` tuples and tunes a flat
+prompt or a LoRA delta. `agent-h` doesn't, because every sibling brings a
+distinctive primitive that *changes the shape of the finetuning loop
+itself*. The finetuning angle is the sum of these:
+
+| Sibling innovation | What ReAct-style finetuning would do | What `agent-h` finetuning does instead |
+|---|---|---|
+| **`coevo` — DAG-of-obligations, not ReAct chain** | tune one prompt over a linear trace | tune *adjacency constraints* between prompt families on a DAG `W=(T,R,P,E,U,Q)`; `α_F` biases which family fires next, `λ_obl` controls how fast obligations decay between branches, `ε_fork` controls when to spawn one. Trajectories are graphs, not strings. |
+| **`coevo` — open alphabet (E.4)** | the action space is fixed at training time | `auto_distill` mints *new* prompt families from successful trajectories during the curriculum and registers them via `coevo.alphabet.extend()`. The agent learns a task-local vocabulary — its action space *grows* as a side effect of finetuning. |
+| **`coevo` — reactive grounding trigger** | grounding is a fixed cadence | `grounding_k` is a tunable knob: lapidary discovers the per-task threshold above which Settle must fire to keep `Q` (queries) bounded. |
+| **`mnemos` — `(cwd, intent_hash)` memory, not embedding similarity** | warm-start by nearest-neighbour embedding of the prompt | warm-start by *exact* Hamming distance over a stable 16-hex `intent_hash`. Two tasks at distance ≤ 6 share `D_0`. No false positives from semantic drift. |
+| **`stepback` — deterministic recipe `r(t)`** | record traces; "replay" means re-prompting | every trial is a recipe; `agent_h.replay(trial_id)` re-executes *bit-identically* including RNG and subprocess state. A "successful" trial is reproducible by definition, so promoting its params to defaults is sound. |
+| **`flowwarden` — taint propagation** | accept any successful trial as evidence | trials carry `outcome.metadata["taint"]`; the Reasoner refuses to promote a default whose supporting trial is tainted with a forbidden label. **You cannot accidentally finetune on leaked data.** |
+| **`bankroll` — real-dollar ledger, not token estimates** | budget = max_tokens | budget = `bankroll_usd=2.50` hard ceiling across the whole curriculum; `BankrollExceeded` short-circuits the current stage and proceeds to the next. The Pareto frontier's x-axis is dollars actually spent, not tokens estimated. |
+| **`looper` — exactly-once durable side effects** | crash → re-run; idempotency is your problem | `finetune_agent` runs inside `looper.durable_session()`; a crash mid-trial resumes exactly-once with no double-charging the ledger and no duplicate trial in the Pareto set. |
+| **`manyworlds` — speculative parallel forks** | best-of-N reduces variance by averaging | `TrajectoryOutcome(n=k)` runs the `k` rollouts via `manyworlds.fork(k)` with prune-by-Pareto inside `manyworlds`. You get the *best* surviving branch, not the mean — which is the right estimator when downstream behaviour is determined by the chosen action, not the average. |
+| **`distill` (sibling) — decision-preserving hierarchical compaction** | summary truncation forces short rollouts | `max_steps` can be a tunable knob even into the dozens because in-rollout context is compacted with bounded loss on decisions; lapidary can search over `max_steps ∈ [4, 40]` honestly. |
+| **`toolforge` — typed tool contracts** | tools are free-form JSON; whitelisting is prompt-level | `tool__<name>` knobs in the policy schema *index a typed registry*; the whitelist is enforced at call time, not at prompt time. Lapidary searches over real subsets of the tool registry. |
+| **`cartograph` — symbol/call/type graph** | `FilenameParam` candidates come from raw glob | `FilenameParam.candidates()` consults `cartograph.symbol_graph(cwd)`, so file-seed search is biased toward the symbols actually called by the task — orders of magnitude fewer wasted trials. |
+| **`ragdoctor` — structured retrieval QC** | retrieval quality is implicit in the final answer score | per-rollout `ragdoctor.diagnose()` returns a *scalar* and a *structured diagnosis*; the scalar multiplies into the per-step reward, the diagnosis becomes a `text_prior` for the Reasoner. Bad retrieval is named, not just felt. |
+| **`adversary` — synthesised adversarial inputs** | robustness = "did you remember to add red-team prompts to your eval set?" | curriculum stage 5 calls `adversary.synthesise(task)`; surviving adversarial trials become a separate Pareto axis. Robustness is *automatically* part of the frontier. |
+| **`rerun` — trace regression** | regression = "do the unit tests still pass?" | every `D'` adoption replays the previous best's *trajectories* through `rerun`; if any regress, the Reasoner sees the regression and can decline the promotion. You cannot silently degrade the agent on tasks B…Z while improving task A. |
+| **`crucible` — paired-bootstrap MDE eval** | best-of-N with no significance test | `CrucibleOutcome` runs paired-bootstrap on each (D, D') with a minimum detectable effect; only statistically meaningful improvements promote. The frontier is *defensible*, not anecdotal. |
+| **`kiln` — capability-based sandbox** | "tools" are subprocess calls with whatever the agent's UID can do | every code/process outcome runs in a `kiln` capability sandbox declared in `task.meta.kiln_caps`; lapidary can search over `max_steps`, candidate file edits, and shell commands without filesystem fear. |
+| **`atelier` — skills + sub-agent delegation** | "skills" = slash commands inserted into a prompt | `auto_distill`'d skills are also registered as `atelier.Skill`s; `homer` can route to them as sub-agents. Distillation produces *runnable* skills, not prompt fragments. |
+| **`groundwork` — typed signed grounding ledger** | edit history of a Markdown file | every `D → D'` is a `groundwork.record_claim` signed over the delta and citing the supporting trial IDs in `T`. `agent_h.verify(task)` walks the chain. **The defaults file is auditable.** |
+| **`shell` — replay-cached LLM transcripts** | every search trial pays the LLM bill again | identical `(model, system_prompt, messages, temperature, seed)` calls hit `shell`'s replay cache. Re-running a curriculum after a small schema change costs cents, not dollars. |
+| **`homer` — composable `Agent`** | the agent is a single class with a `run(prompt)` method | a homer Agent is wired from `shell + toolforge + bankroll + mnemos + stepback + flowwarden + …`; lapidary tunes the *wiring* (which signals are weighted how, which tools are enabled, which skills are routable) — not just the prompt. |
+| **`lapidary` — typed contract** | the output of finetuning is a checkpoint or a prompt string | the output is a *typed object* `D'` with cited trials, signed deltas, distilled skills, transferred ancestors, taint-cleared evidence, and a Pareto frontier. The next finetune resumes from it. |
+
+The compounding effect: a finetuning loop that picks a better
+**`(model, temperature, system_prompt, max_steps, α_F, w_σ, λ_obl, ε_fork,
+grounding_k, enabled_tools, distilled_skills)`** for *this exact task*,
+under a real dollar ceiling, with every promotion taint-checked, every
+regression replayed, every default signed and cited, every skill
+runnable, and the whole thing reproducible by `agent_h.replay(trial_id)`.
+That is what we mean by *finetuning an agent for a task*.
+
+
 
 Production agent platforms answer a different set of operational questions
 than research-software platforms. The **production tier** answers *"is this
