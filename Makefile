@@ -1,20 +1,24 @@
-.PHONY: help clone install test demo clean
+.PHONY: help clone install test demo clean research-tier prod-tier
 
-REPOS := stepback ragdoctor flowwarden
+PROD_REPOS := stepback ragdoctor flowwarden looper mnemos bankroll toolforge adversary rerun homer cartograph manyworlds distill atelier kiln crucible
+RESEARCH_REPOS := coevo groundwork
+ALL_REPOS := $(PROD_REPOS) $(RESEARCH_REPOS)
 GH_OWNER := thehalleyyoung
 WORK := .checkouts
 
 help:
 	@echo "agent-h Makefile targets:"
-	@echo "  make clone    - git clone the three component repos into $(WORK)/"
-	@echo "  make install  - pip install the three components in editable mode"
-	@echo "  make test     - run each component's pytest suite"
-	@echo "  make demo     - run examples/integrated_demo.py"
-	@echo "  make clean    - remove $(WORK)/"
+	@echo "  make clone           - git clone all 12 component repos into $(WORK)/"
+	@echo "  make install         - pip install all components in editable mode"
+	@echo "  make prod-tier       - install only the production-tier 10 components"
+	@echo "  make research-tier   - install only the research-software-tier 2 components (coevo, groundwork)"
+	@echo "  make test            - run each component's pytest suite"
+	@echo "  make demo            - run examples/integrated_demo.py"
+	@echo "  make clean           - remove $(WORK)/"
 
 clone:
 	@mkdir -p $(WORK)
-	@for r in $(REPOS); do \
+	@for r in $(ALL_REPOS); do \
 	  if [ -d $(WORK)/$$r ]; then \
 	    echo "[$$r] already cloned, pulling..."; \
 	    git -C $(WORK)/$$r pull --ff-only; \
@@ -25,12 +29,25 @@ clone:
 	done
 
 install: clone
-	pip install -e $(WORK)/stepback'[dev]'
-	pip install -e $(WORK)/ragdoctor
-	pip install -e $(WORK)/flowwarden
+	@for r in $(ALL_REPOS); do \
+	  echo "===== pip install -e $(WORK)/$$r ====="; \
+	  pip install -e $(WORK)/$$r || exit 1; \
+	done
+
+prod-tier: clone
+	@for r in $(PROD_REPOS); do \
+	  echo "===== pip install -e $(WORK)/$$r ====="; \
+	  pip install -e $(WORK)/$$r || exit 1; \
+	done
+
+research-tier: clone
+	@for r in $(RESEARCH_REPOS); do \
+	  echo "===== pip install -e $(WORK)/$$r ====="; \
+	  pip install -e $(WORK)/$$r || exit 1; \
+	done
 
 test:
-	@for r in $(REPOS); do \
+	@for r in $(ALL_REPOS); do \
 	  echo "===== pytest: $$r ====="; \
 	  (cd $(WORK)/$$r && python -m pytest -q --maxfail=5) || exit 1; \
 	done
