@@ -157,37 +157,112 @@ Table 2 and `lapidary/100_STEPS.md` § Integration.
 
 ### Concrete example
 
+The two things that matter most about a finetune run are (1) **what LLM is
+allowed**, and (2) **how a candidate output artifact is scored**. Both are
+explicit in the Task — the model is a `ChoiceParam` in the user schema (so
+the search picks among allowed providers / sizes), and the score function
+inspects the produced artifact (codebase, HTML+gif sequence, mp4, JSON
+report) and returns a number.
+
 ```python
+from pathlib import Path
 from lapidary import (
-    Task, Searcher, finetune_agent, cometh_rollout, join_schemas,
-    cometh_policy_schema,
+    Task, ChoiceParam, NumberParam, TextParam,
+    finetune_agent, cometh_rollout, join_schemas,
+    cometh_policy_schema, TrajectoryOutcome,
 )
+from shell import LLMClient
 from homer import Agent
+from crucible import grade_codebase   # eval harness from the stack
 
-def my_agent_step(state, family):
-    # one comet-h step — return (new_state, observation, cost, reward, done, tool_calls)
-    return Agent.from_state(state).step(family)
+# 1. Declare the user-facing knobs INCLUDING which LLMs are allowed.
+#    `lapidary` will Pareto-search over (model × temperature × prompt × ...).
+user_schema = {
+    "model":       ChoiceParam(choices=("anthropic/claude-sonnet-4.6",
+                                        "openai/gpt-5-mini",
+                                        "ollama/qwen3-coder:30b"),
+                               default="openai/gpt-5-mini"),
+    "temperature": NumberParam(min=0.0, max=1.5, default=0.4),
+    "system_prompt": TextParam(default="You are a careful refactoring agent."),
+    "max_steps":   NumberParam(min=4, max=40, default=16, integer=True),
+}
 
+# 2. Add the comet-h controller knobs (alphabet bias, signal weights, tool
+#    whitelist, lambda_obl, epsilon_fork, grounding_k, ...).
 policy_schema = cometh_policy_schema(
     alphabet_names=("Generate", "Harden", "Settle", "Refactor"),
     signal_names=("Bankroll", "Mnemos", "Crucible"),
-    tool_names=("grep", "edit", "run_tests"),
+    tool_names=("grep", "edit", "run_tests", "git_diff"),
 )
 
-task = Task.load("~/.lapidary/refactor-auth-module")
-task.schema = join_schemas(task.schema, policy_schema)
+# 3. The agent_step USES the params lapidary picks. The provider routing,
+#    token accounting, fallbacks, and replay caching all live in `shell`.
+def my_agent_step(state, family, *, params, work_dir):
+    llm = LLMClient(model=params["model"], temperature=params["temperature"])
+    agent = Agent.from_state(
+        state,
+        llm=llm,
+        system_prompt=params["system_prompt"],
+        tools=params["enabled_tools"],          # <- toolforge whitelist
+        work_dir=work_dir,
+    )
+    return agent.step(family)   # (new_state, obs, cost_usd, reward, done, tool_calls)
+
+# 4. The score function GRADES THE PRODUCED ARTIFACT. This is what the
+#    Pareto search is optimising. For a codebase task we run the eval suite
+#    via `crucible`; for an mp4 task it would diff frames; for an HTML+gif
+#    task it would run a rubric LLM against the rendered sequence.
+def score_artifact(trajectory) -> float:
+    final_state = trajectory.steps[-1].state_summary
+    artifact_dir = Path(final_state["work_dir"])
+    grade = grade_codebase(
+        artifact_dir,
+        suite_id="refactor-auth-module/v1",      # crucible suite
+        rubric=[
+            ("tests_pass",    1.0),              # weight 1.0
+            ("type_check",    0.5),
+            ("api_unchanged", 0.8),              # public API stability
+            ("loc_delta",    -0.001),            # small penalty per LOC churn
+        ],
+    )
+    return grade.score          # in [0, 1]; crucible writes last_grade.json
+
+# 5. Wire it up. `bankroll_usd` is the HARD cost ceiling for the whole tune.
+task = Task(
+    name="refactor-auth-module",
+    prompt="Refactor src/auth/ to remove session state without changing the public API.",
+    schema=join_schemas(user_schema, policy_schema),
+    work_root=Path("~/.lapidary/refactor-auth-module").expanduser(),
+)
 
 report = finetune_agent(
     task,
-    rollout=cometh_rollout(my_agent_step,
-                           success_pred=lambda s: s.get("tests_pass")),
+    rollout=cometh_rollout(
+        my_agent_step,
+        success_pred=lambda s: s.get("tests_pass") is True,
+    ),
+    outcome=TrajectoryOutcome(score_fn=score_artifact, n=3),  # 3 rollouts/trial
     bankroll_usd=2.50,
 )
-print(report.final_defaults)        # the new typed defaults
+
+print(report.final_defaults)        # the new typed defaults (incl. chosen model)
 print(report.distilled_skills)      # task-local PromptFamilies minted
-print(report.transferred_from)      # which neighbour tasks warm-started this
-print(report.cost_usd)              # what the whole tune cost
+print(report.transferred_from)      # neighbour tasks that warm-started this one
+print(report.cost_usd)              # what the whole tune cost (≤ 2.50)
 ```
+
+Two things to notice:
+
+* **`model` is a parameter, not a fixed string.** `lapidary` may discover
+  that `gpt-5-mini` at `temperature=0.2` Pareto-dominates `claude-sonnet-4.6`
+  at `temperature=0.7` for *this specific task*, and write that into
+  `final_defaults`. A flat `CLAUDE.md` cannot do this.
+* **The score function inspects the artifact, not the trajectory text.**
+  Whether the artifact is a codebase, a sequence of HTML pages and gifs, or
+  a generated mp4, the score is whatever `score_artifact(trajectory)`
+  returns. `crucible` is the recommended grader for codebases; for media
+  artifacts you supply your own (frame diff, rubric LLM, perceptual hash,
+  human-in-the-loop via `lapidary review`).
 
 ---
 
