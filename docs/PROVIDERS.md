@@ -120,3 +120,63 @@ for detail):
 | `stepback` | `PROVIDER_SEED_SUPPORT` registry covering openai/anthropic/groq/together/fireworks/cerebras/deepseek/xai/openrouter/mistral/perplexity/deepinfra/anyscale | extended in this release |
 | `cartograph`, `manyworlds`, `distill`, `atelier`, `kiln`, `crucible`, `coevo`, `groundwork` | `<repo>/llm_provider.py` (this release) | shipped |
 | `homer`, `adversary`, `toolforge`, `ragdoctor`, `flowwarden`, `mnemos` | inherit shared module (planned migration) | tracked in 100_STEPS |
+
+## Token-saving caches
+
+The shared `<repo>/llm_provider.py` ships with two opt-in cache layers,
+both producing direct token (and dollar) savings:
+
+### Local response cache
+
+SQLite-backed, content-addressed by `sha256(provider, canonical_request)`;
+hits return immediately without touching the network. Activate with:
+
+```bash
+export AGENT_H_LLM_CACHE=1
+export AGENT_H_LLM_CACHE_PATH=~/.cache/agent-h/llm_cache.db   # optional
+export AGENT_H_LLM_CACHE_TTL=86400                            # optional, seconds
+```
+
+…or programmatically: `LLMClient(..., cache=True)`. `ChatResponse.cached`
+is `True` for cached responses so `bankroll` and dashboards can attribute
+savings.
+
+### Provider-side prompt caching
+
+Many providers serve cached prompt prefixes at a 50–90 % input-token
+discount. The shared client knows about every popular variant and
+applies the right marker automatically:
+
+| Provider | Mechanism | Annotation |
+|---|---|---|
+| anthropic (via litellm) | `cache_control={"type":"ephemeral"}` on last system+user | up to 90 % input-token discount |
+| openai / azure_openai | stable `prompt_cache_key` derived from prefix | hit-rate boost on automatic ≥1024-token caching |
+| gemini (via litellm) | `cache_control={"type":"cached_content"}` on system | per Google's spec |
+| deepseek | automatic | reported via `usage.prompt_cache_hit_tokens` |
+| openrouter | passthrough to upstream | as upstream supports |
+| groq, together, fireworks, mistral, perplexity, … | n/a | local response cache only |
+
+Activate: `LLMClient(..., prompt_cache=True)` or
+`AGENT_H_LLM_PROMPT_CACHE=1`. `ChatResponse.prompt_cache_hit_tokens`
+returns the cached token count from the provider's `usage` block (works
+across OpenAI, DeepSeek, and Anthropic shapes).
+
+### Pre-existing repo-specific caches
+
+Several sibling repos have purpose-built caches that long predate the
+shared `llm_provider.py`. They remain authoritative for their domain:
+
+| Repo | Module | Purpose |
+|---|---|---|
+| `homer` | `homer/cache.py` | LLM response cache (SHA-256 model+prompt → response, SQLite, LRU + TTL) |
+| `homer` | `homer/planner/memoize.py`, `homer/corpus/embedding_cache.py` | planner / embedding memoization |
+| `adversary` | `adversary/cache.py` | candidate-prompt result cache (SQLite) |
+| `ragdoctor` | `ragdoctor/caching.py` | embedding cache + query cache |
+| `ragdoctor` | `ragdoctor/cache.py` | audit-report disk LRU |
+| `stepback` | `stepback/step_cache.py` | sharded content-addressed step cache (dedup across traces) |
+| `toolforge` | `toolforge/cache_store.py` | tool-result memoization (Dict/File/Shelve, sync + async) |
+| `mnemos` | `mnemos/cache.py` | store-query LRU with namespace-aware invalidation |
+
+These will be brought into composition with the monorepo-wide
+`ResponseCache` over time; see each repo's `100_STEPS.md` for the
+migration roadmap.
