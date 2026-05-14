@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-h"
+version = "0.1.0"
+description = "Meta-package for the agent-h stack: lazy re-exports of all 19 subsystems under one namespace"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "The agent-h authors" }]
+keywords = ["llm", "agent", "comet-h", "lapidary", "finetuning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# By default, the meta-package has NO required deps — every subsystem is
+# loaded lazily and reports a clear AgentHMissingDependency if absent.
+# Install what you need via the optional extras below or `make install-all`.
+dependencies = []
+
+[project.optional-dependencies]
+# Convenience extras — each pulls in one tier from git+https.
+prod = [
+    "shell      @ git+https://github.com/thehalleyyoung/shell",
+    "homer      @ git+https://github.com/thehalleyyoung/homer",
+    "looper     @ git+https://github.com/thehalleyyoung/looper",
+    "bankroll   @ git+https://github.com/thehalleyyoung/bankroll",
+    "mnemos     @ git+https://github.com/thehalleyyoung/mnemos",
+    "stepback   @ git+https://github.com/thehalleyyoung/stepback",
+    "flowwarden @ git+https://github.com/thehalleyyoung/flowwarden",
+    "toolforge  @ git+https://github.com/thehalleyyoung/toolforge",
+    "adversary  @ git+https://github.com/thehalleyyoung/adversary",
+    "rerun      @ git+https://github.com/thehalleyyoung/rerun",
+    "ragdoctor  @ git+https://github.com/thehalleyyoung/ragdoctor",
+    "cartograph @ git+https://github.com/thehalleyyoung/cartograph",
+    "manyworlds @ git+https://github.com/thehalleyyoung/manyworlds",
+    "distill    @ git+https://github.com/thehalleyyoung/distill",
+    "atelier    @ git+https://github.com/thehalleyyoung/atelier",
+    "kiln       @ git+https://github.com/thehalleyyoung/kiln",
+    "crucible   @ git+https://github.com/thehalleyyoung/crucible",
+]
+research = [
+    "coevo      @ git+https://github.com/thehalleyyoung/coevo",
+    "groundwork @ git+https://github.com/thehalleyyoung/groundwork",
+]
+finetune = [
+    "lapidary   @ git+https://github.com/thehalleyyoung/lapidary",
+]
+all = ["agent-h[prod,research,finetune]"]
+
+[project.urls]
+Homepage = "https://github.com/thehalleyyoung/agent-h"
+Source = "https://github.com/thehalleyyoung/agent-h"
+
+[tool.setuptools.packages.find]
+include = ["agent_h*"]
+exclude = [".checkouts*", "blog*", "docs*", "papers*", "examples*"]

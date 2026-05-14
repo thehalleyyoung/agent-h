@@ -1,7 +1,7 @@
 # agent-h
 
 > A reference stack for building, running, debugging, **conducting research with**,
-> and **finetuning per task** production LLM agents. Nineteen independent
+> and **finetuning per task** production LLM agents. Twenty independent
 > open-source projects, each owning one concern, designed so they compose
 > end-to-end on a single agent run — and so the per-task settings that
 > tie them together live in a typed, Pareto-tuned, preference-constrained,
@@ -30,7 +30,7 @@ subsystem. The other 18 subsystems each own one named role at finetune time
 
 ---
 
-## The 19 subsystems
+## The 20 subsystems
 
 The stack is organised in three tiers. **Production** is what you need to run,
 observe, and audit a deployed agent. **Research-software (Comet-H)** adds the
@@ -75,15 +75,43 @@ tunes the per-task contract and learns task-local skills.
 
 ---
 
-## What `lapidary` does that `CLAUDE.md` cannot
+## What `agent-h` can do
 
-A flat `CLAUDE.md` (or `AGENTS.md`, or `.cursorrules`, or `instructions.md`) is
-five things at once: a parameter store, a preference store, a default-value
-store, a memory store, and a constraint store. None of those five jobs is done
-well, because the data structure is wrong. `lapidary` replaces it with a typed
-contract:
+`agent-h` is what you get when 20 single-concern subsystems share design
+DNA and one typed contract. The capabilities below are not theoretical —
+each one cites the subsystem(s) that implement it. Everything is
+importable from the top-level `agent_h` namespace (see
+[§ Get started](#get-started)).
 
-| Axis | `CLAUDE.md` | `lapidary` |
+| Capability | What it means | Powered by |
+|---|---|---|
+| **Build a multi-tool agent** | wire LLM + tools + memory + budget into a single `Agent` | `homer` + `shell` + `toolforge` + `bankroll` + `mnemos` |
+| **Run any model, swap providers freely** | Anthropic / OpenAI / Ollama / fakes behind one `LLMClient` with fallback and cached transcripts | `shell` |
+| **Cap real dollars, not "tokens"** | per-task ledger with hard ceilings, per-step accounting, `BankrollExceeded` short-circuit | `bankroll` |
+| **Survive crashes without re-running side effects** | exactly-once durable agent loop; resume from the last completed step | `looper` |
+| **Replay any run bit-identically** | every trial has a recipe `r(t)`; `agent_h.replay(trial_id)` re-executes deterministically | `stepback` |
+| **Audit data flow end-to-end** | taint labels propagate across LLM/tool calls; promotion gated on label whitelist | `flowwarden` |
+| **Sandbox subprocess execution** | capability-based deny-by-default; pluggable backends; signed attestations | `kiln` |
+| **Define and enforce typed tool contracts** | per-task tool whitelist; refuse tool calls outside it | `toolforge` |
+| **Remember across sessions** | content-addressed cross-session memory keyed by `(cwd, intent_hash)` | `mnemos` |
+| **Do repo-scale code intelligence** | symbol/call/type graph, ranked context selection, file-seed candidates | `cartograph` |
+| **Compact context losslessly under budget** | hierarchical decision-preserving compaction with retrieval awareness | `distill` |
+| **Speculatively explore in parallel** | fork into N branches, prune by signal stack, collapse to winner | `manyworlds` |
+| **Diagnose retrieval / RAG regressions** | per-rollout retrieval QC scalar + structured diagnosis | `ragdoctor` |
+| **Synthesise adversarial inputs** | curriculum stage that injects targeted failures; survival is a Pareto axis | `adversary` |
+| **Gate every change on regressions** | replay previous best on every defaults bump; refuse adoption on regression | `rerun` |
+| **Run paired-bootstrap + MDE evals** | mutation-based suite synthesis; CI gating; per-trial `last_grade.json` | `crucible` |
+| **Catalog skills + delegate to sub-agents** | slash commands, hooks, skill registry; receives skills minted by `lapidary` | `atelier` |
+| **Co-evolve theory, code, claims, evidence** | Comet-H state machine `W=(T,R,P,E,U,Q)`; decaying obligations; reactive grounding | `coevo` |
+| **Bind public claims to runnable evidence** | typed signed grounding ledger; every defaults transition is a signed claim | `groundwork` |
+| **Finetune the agent for a specific task** | typed preference contract + Pareto search + curriculum + warm-start + skill distillation | `lapidary` |
+
+The unifying point: **every capability above writes to or reads from the
+same per-task contract `lapidary.Task`**, which is why the stack composes
+instead of merely co-existing. Compared to a flat `CLAUDE.md` /
+`AGENTS.md` / `.cursorrules` / `instructions.md` instruction file:
+
+| Axis | Flat instruction file | `agent-h` |
 |---|---|---|
 | **Enforcement** | suggestion in prose | `AVOID` literally removes the value from the searched schema |
 | **Quantification** | none | every preference is a typed range / set / boost |
@@ -91,13 +119,11 @@ contract:
 | **Learning** | manual edits | Pareto search over (quality × cost) updates defaults under preference constraints |
 | **Cross-session** | one file per repo | `mnemos.recall(intent_hash)` warm-starts neighbouring tasks |
 | **Planner visibility** | LLM may ignore it | the schema *physically shrinks* before the LLM sees it |
-| **Replayability** | none | every trial recorded by `stepback`; `lapidary replay` re-executes bit-identically |
+| **Replayability** | none | every trial recorded by `stepback`; bit-identical re-execution |
 | **Taint** | none | `flowwarden` taint gates promotion; tainted trials cannot become defaults |
 | **Cost** | unaccounted | every trial charges the per-task `bankroll` ledger |
 
-The full articulation is in
-[lapidary/README.md](https://github.com/thehalleyyoung/lapidary#what-stored-preferences-let-you-do-that-claudemd-cannot)
-and the formal subsumption theorem is in
+The formal subsumption theorem is in
 [`papers/agent-h-arch/main.tex`](papers/agent-h-arch/main.tex).
 
 ---
@@ -284,19 +310,56 @@ per-task knobs.
 
 ## Get started
 
+`agent-h` itself is a **meta-package** that lazily re-exports every
+subsystem under one Python namespace. Importing `agent_h` is cheap and
+requires no subsystems; each subsystem is loaded on first attribute
+access and reports a clear `AgentHMissingDependency` if absent.
+
 ```bash
-# Clone the meta-repo
+# Install just the meta-package (no subsystem deps)
+pip install git+https://github.com/thehalleyyoung/agent-h
+
+# Or pull the meta-package + a tier of subsystems via extras:
+pip install "agent-h[finetune] @ git+https://github.com/thehalleyyoung/agent-h"   # just lapidary
+pip install "agent-h[prod] @ git+https://github.com/thehalleyyoung/agent-h"       # 17 production subsystems
+pip install "agent-h[research] @ git+https://github.com/thehalleyyoung/agent-h"   # coevo + groundwork
+pip install "agent-h[all] @ git+https://github.com/thehalleyyoung/agent-h"        # everything
+
+# Or clone and install in editable mode (development workflow)
 git clone https://github.com/thehalleyyoung/agent-h
-cd agent-h
+cd agent-h && make install-all       # installs all 20 subsystems in editable mode
+```
 
-# Install any subset (each is independently `pip install`-able from git+https)
-pip install git+https://github.com/thehalleyyoung/lapidary
-pip install git+https://github.com/thehalleyyoung/homer
-pip install git+https://github.com/thehalleyyoung/shell
-# ...
+Then everything is reachable from one import:
 
-# Or pull the whole stack
-make install-all       # installs all 19 subsystems in editable mode
+```python
+import agent_h
+print(agent_h.SUBSYSTEMS)            # the 20 subsystems and their pip targets
+
+# Sub-package access (lazy):
+agent_h.lapidary.Task                 # == lapidary.Task
+agent_h.homer.Agent                   # == homer.Agent
+agent_h.shell.LLMClient               # == shell.LLMClient
+
+# Convenience symbol re-exports — the most-used public API of each subsystem:
+from agent_h import (
+    Task, Searcher, ChoiceParam, NumberParam, TextParam, FilenameParam,  # lapidary
+    AgentPolicy, cometh_policy_schema, TrajectoryOutcome,                 # lapidary finetune
+    finetune_agent, cometh_rollout, join_schemas, FinetuneReport,         # lapidary finetune
+    LLMClient,                                                            # shell
+    Agent,                                                                # homer
+    Ledger, BankrollExceeded,                                             # bankroll
+    recall, remember,                                                     # mnemos
+    replay, recorder,                                                     # stepback
+    TaintLabel,                                                           # flowwarden
+    durable_session,                                                      # looper
+    grade_codebase,                                                       # crucible
+    intent_hash, PromptFamily,                                            # coevo
+    record_claim,                                                         # groundwork
+    fork,                                                                 # manyworlds
+    HierarchicalCompactor,                                                # distill
+    symbol_graph,                                                         # cartograph
+)
 ```
 
 Then either:
@@ -304,8 +367,8 @@ Then either:
 * **Build an agent** with `homer` + `shell` + `toolforge` + `bankroll`
   (production tier).
 * **Conduct research** in `coevo` + `groundwork` (Comet-H tier).
-* **Finetune any agent for any task** with `lapidary finetune <task>`
-  (finetuning tier).
+* **Finetune any agent for any task** with `lapidary finetune <task>` or
+  `agent_h.finetune_agent(...)` (finetuning tier).
 
 The blog post [*Homer is not Claude Code — and that's the point*](blog/2026-05-14-homer-vs-claude-code.md)
 walks through the design choices that make this composition work where flat
