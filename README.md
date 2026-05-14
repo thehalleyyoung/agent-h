@@ -1,42 +1,62 @@
 # agent-h
 
-> A reference stack for building, running, debugging, and **conducting research
-> with** production LLM agents. Twelve independent open-source projects, each
-> owning one concern, designed so they can be composed end-to-end on a single
-> agent run.
+> A reference stack for building, running, debugging, **conducting research with**,
+> and **finetuning per task** production LLM agents. Nineteen independent
+> open-source projects, each owning one concern, designed so they compose
+> end-to-end on a single agent run — and so the per-task settings that
+> tie them together live in a typed, Pareto-tuned, preference-constrained,
+> taint-tracked, deterministically replayable contract instead of a Markdown file.
 
-This repository is the **meta-repo**: it doesn't ship code itself. It points
-at the component projects, explains how they fit together, and shows
-how to use them in combination.
+This repository is the **meta-repo**: it doesn't ship code itself. It points at
+the component projects, explains how they fit together, and shows how to use
+them in combination. Every component is Apache-2.0, Python-first (some have
+Rust cores in progress), and **intentionally decoupled**: you can adopt any one
+in isolation or any subset, because they share design DNA (canonical encoding,
+signed append-only artifacts, duck-typed adapters).
 
 ---
 
-## Components
+## One-sentence thesis
 
-The stack is organised in two tiers. The **production tier** is what you
-need to run, observe, and audit a deployed agent. The **research-software
-tier** adds the controller and evidence substrate needed to drive
-*research* repositories — codebases where the thesis itself is under
-construction and theory, code, claims, and evidence must co-evolve.
+> **Per-task agent settings — model, temperature, prompts, tool whitelist, search
+> knobs, distilled skills — belong in a typed, Pareto-tuned, preference-constrained,
+> taint-tracked, deterministically replayable contract, not in a Markdown file;
+> tuning that contract under a real cost ceiling is the unit of *finetuning an
+> agent for a task*.**
+
+The contract is the [`lapidary`](https://github.com/thehalleyyoung/lapidary)
+subsystem. The other 18 subsystems each own one named role at finetune time
+(see [§ Integration](#integration)).
+
+---
+
+## The 19 subsystems
+
+The stack is organised in three tiers. **Production** is what you need to run,
+observe, and audit a deployed agent. **Research-software (Comet-H)** adds the
+controller and evidence substrate needed for codebases where theory, code,
+claims, and evidence must co-evolve. **Finetuning** is the crowning loop that
+tunes the per-task contract and learns task-local skills.
 
 ### Production tier
 
 | Component | Concern | Repository |
 |---|---|---|
-| 🩺 **ragdoctor** | quality — diagnose RAG/agent regressions and prescribe fixes | <https://github.com/thehalleyyoung/ragdoctor> |
-| 🐛 **stepback** | debugging — record, replay, and counterfactually re-execute an agent run | <https://github.com/thehalleyyoung/stepback> |
-| 🛡️ **flowwarden** | security/audit — taint-track data across tool/LLM calls and emit signed attestations | <https://github.com/thehalleyyoung/flowwarden> |
-| 🔁 **looper** | durable agent control loop primitive (idempotent, resumable, exactly-once side effects) | <https://github.com/thehalleyyoung/looper> |
-| 🧠 **mnemos** | content-addressed agent memory store with time-travel and labels | <https://github.com/thehalleyyoung/mnemos> |
+| 🐚 **shell** | LLM substrate — multi-provider client (OpenAI / Anthropic / Ollama / fakes), token accounting, fallback, replay-cached transcripts | <https://github.com/thehalleyyoung/shell> |
+| 🤖 **homer** | conversational agent framework wiring the rest into a single `Agent` (the default thing you tune with `lapidary`) | <https://github.com/thehalleyyoung/homer> |
+| 🔁 **looper** | durable agent control loop (idempotent, resumable, exactly-once side effects) | <https://github.com/thehalleyyoung/looper> |
 | 💸 **bankroll** | per-step token / dollar accounting and budget enforcement | <https://github.com/thehalleyyoung/bankroll> |
-| 🔧 **toolforge** | typed tool-contract layer for LLM toolchains | <https://github.com/thehalleyyoung/toolforge> |
-| ⚔️ **adversary** | adversarial-input synthesis for LLM agents | <https://github.com/thehalleyyoung/adversary> |
-| 🧪 **rerun** | CI regression harness for agent traces | <https://github.com/thehalleyyoung/rerun> |
-| 🤖 **homer** | conversational AI agent framework wiring all the above into a single Agent | <https://github.com/thehalleyyoung/homer> |
-| 🗺️ **cartograph** | repo-scale code intelligence — symbol/call/type graph + ranked context selection for large coding tasks | <https://github.com/thehalleyyoung/cartograph> |
-| 🌌 **manyworlds** | speculative parallel agent search — fork into N branches, prune by signal stack, collapse to the winner | <https://github.com/thehalleyyoung/manyworlds> |
-| 💧 **distill** | hierarchical context compaction — decision-preserving loss bounds, retrieval-aware policies, streaming compaction | <https://github.com/thehalleyyoung/distill> |
-| 🎨 **atelier** | skills + sub-agent delegation + slash commands + hooks — the agent-extensibility framework | <https://github.com/thehalleyyoung/atelier> |
+| 🧠 **mnemos** | content-addressed cross-session memory keyed by `(cwd, intent_hash)` | <https://github.com/thehalleyyoung/mnemos> |
+| 🐛 **stepback** | record, replay, and counterfactually re-execute an agent run; deterministic recipe per trial | <https://github.com/thehalleyyoung/stepback> |
+| 🛡️ **flowwarden** | taint-track data across tool/LLM calls; emit signed attestations; gate promotion | <https://github.com/thehalleyyoung/flowwarden> |
+| 🔧 **toolforge** | typed tool-contract registry; the substrate for per-task tool whitelists | <https://github.com/thehalleyyoung/toolforge> |
+| ⚔️ **adversary** | adversarial-input synthesis; the curriculum's robustness stage | <https://github.com/thehalleyyoung/adversary> |
+| 🧪 **rerun** | CI regression harness for agent traces; gates every defaults bump | <https://github.com/thehalleyyoung/rerun> |
+| 🩺 **ragdoctor** | diagnose RAG/agent regressions and prescribe fixes; per-rollout retrieval QC signal | <https://github.com/thehalleyyoung/ragdoctor> |
+| 🗺️ **cartograph** | repo-scale code intelligence — symbol/call/type graph + ranked context selection; powers `FilenameParam.candidates()` | <https://github.com/thehalleyyoung/cartograph> |
+| 🌌 **manyworlds** | speculative parallel agent search — fork into N branches, prune by signal stack, collapse to winner | <https://github.com/thehalleyyoung/manyworlds> |
+| 💧 **distill** | hierarchical context compaction — decision-preserving loss bounds, retrieval-aware policies, streaming | <https://github.com/thehalleyyoung/distill> |
+| 🎨 **atelier** | skills + sub-agent delegation + slash commands + hooks; receives skills minted by `lapidary` | <https://github.com/thehalleyyoung/atelier> |
 | 🔥 **kiln** | capability-based sandboxed execution — deny-by-default, pluggable backends, signed attestations | <https://github.com/thehalleyyoung/kiln> |
 | ⚗️ **crucible** | agent eval & regression harness — paired bootstrap, MDE, mutation-based suite synthesis, CI gating | <https://github.com/thehalleyyoung/crucible> |
 
@@ -44,173 +64,201 @@ construction and theory, code, claims, and evidence must co-evolve.
 
 | Component | Concern | Repository |
 |---|---|---|
-| 🧭 **coevo** | co-evolution state-machine controller — workspace `W=(T,R,P,E,U,Q)`, decaying obligations, reactive grounding trigger, adjacency constraints | <https://github.com/thehalleyyoung/coevo> |
-| 📑 **groundwork** | typed signed grounding ledger binding public claims to runnable evidence | <https://github.com/thehalleyyoung/groundwork> |
+| 🧭 **coevo** | co-evolution state-machine controller — workspace `W=(T,R,P,E,U,Q)`, decaying obligations, reactive grounding trigger, open-alphabet skills | <https://github.com/thehalleyyoung/coevo> |
+| 📑 **groundwork** | typed signed grounding ledger binding public claims to runnable evidence; signs every `D → D'` transition | <https://github.com/thehalleyyoung/groundwork> |
 
-All components are Apache-2.0, Python-first (Rust core layers in progress
-for some), and intentionally **decoupled**: you can adopt any one in
-isolation, or any subset. They share design DNA (canonical encoding,
-signed append-only artifacts, duck-typed adapters) which makes
-composition natural.
+### Finetuning tier
 
----
-
-## Why two tiers, not one
-
-Production agent platforms answer a different set of operational
-questions than research-software workflows.
-
-**Production tier** answers:
-1. *"Are my answers good?"* → `ragdoctor`
-2. *"Why did step 17 do that, and what would have happened if step 12
-   had returned X instead?"* → `stepback`
-3. *"Did sensitive data leak from tool A to tool B?"* → `flowwarden`
-4. *"How do I keep an agent run going through transient failures?"* → `looper`
-5. *"What did this agent know at turn N, and how do I share that across
-   sessions?"* → `mnemos`
-6. *"Am I about to spend $40 on a single chat?"* → `bankroll`
-7. *"Is this tool actually safe to expose to the LLM?"* → `toolforge`
-8. *"Will this agent break under adversarial input?"* → `adversary`
-9. *"Did my last commit regress trace quality?"* → `rerun`
-10. *"How do I assemble all of the above into one Agent I can talk to?"* → `homer`
-
-**Research-software tier** answers two further questions whose data
-structures are fundamentally different:
-
-11. *"What should the agent do **next** to keep my paper, code, theory, and
-    benchmarks consistent with each other?"* → `coevo`
-12. *"Which empirical claim in this paper is actually supported by a
-    runnable command, and which is a hallucination that drifted in?"* → `groundwork`
-
-Together the research tier prevents the two LM-specific failure modes
-identified by Comet-H: **hallucination accumulation** (claims exceed
-what code or theory supports, then propagate) and **desynchronization**
-(theory, code, claims, and the LM's world model fall out of alignment).
+| Component | Concern | Repository |
+|---|---|---|
+| 💎 **lapidary** | the **per-task preference contract**; agent-policy finetuning loop (warm-start → curriculum → reasoner → distill); strictly subsumes `CLAUDE.md` along nine measurable axes | <https://github.com/thehalleyyoung/lapidary> |
 
 ---
 
-## How the components compose at runtime
+## What `lapidary` does that `CLAUDE.md` cannot
 
-The intended layering, from the agent loop outward (production stack only;
-research mode adds `coevo` as the planner and `groundwork` as a peer of
-the recorder):
+A flat `CLAUDE.md` (or `AGENTS.md`, or `.cursorrules`, or `instructions.md`) is
+five things at once: a parameter store, a preference store, a default-value
+store, a memory store, and a constraint store. None of those five jobs is done
+well, because the data structure is wrong. `lapidary` replaces it with a typed
+contract:
+
+| Axis | `CLAUDE.md` | `lapidary` |
+|---|---|---|
+| **Enforcement** | suggestion in prose | `AVOID` literally removes the value from the searched schema |
+| **Quantification** | none | every preference is a typed range / set / boost |
+| **Provenance** | edit history at best | every default cites the trial(s) that justify it; signed in `groundwork` |
+| **Learning** | manual edits | Pareto search over (quality × cost) updates defaults under preference constraints |
+| **Cross-session** | one file per repo | `mnemos.recall(intent_hash)` warm-starts neighbouring tasks |
+| **Planner visibility** | LLM may ignore it | the schema *physically shrinks* before the LLM sees it |
+| **Replayability** | none | every trial recorded by `stepback`; `lapidary replay` re-executes bit-identically |
+| **Taint** | none | `flowwarden` taint gates promotion; tainted trials cannot become defaults |
+| **Cost** | unaccounted | every trial charges the per-task `bankroll` ledger |
+
+The full articulation is in
+[lapidary/README.md](https://github.com/thehalleyyoung/lapidary#what-stored-preferences-let-you-do-that-claudemd-cannot)
+and the formal subsumption theorem is in
+[`papers/agent-h-arch/main.tex`](papers/agent-h-arch/main.tex).
+
+---
+
+## <a name="integration"></a>How they all fit together: agent finetuning
+
+`lapidary finetune <task>` is the **single command** that exercises every
+sibling. It is also the most honest demonstration of what the stack is for.
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│  Your agent code (LangChain / LlamaIndex / CrewAI / MCP / bare      │
-│  OpenAI tool calls / your own loop / homer.Agent / coevo machine)   │
-│                                                                      │
-│   ┌────────────────── flowwarden.install(policy) ──────────────────┐ │
-│   │   @flowwarden.tool(returns=PII)                                │ │
-│   │   def lookup_customer(...): ...                                │ │
-│   │                                                                │ │
-│   │     ┌─────────── stepback.record("run.sb") ──────────────┐    │ │
-│   │     │   rec.tool_call("lookup_customer", {...})           │    │ │
-│   │     │   rec.llm_call("gpt-4o-mini", [...])                │    │ │
-│   │     │                                                     │    │ │
-│   │     │     ┌── pipeline = ragdoctor.RagPipeline.from(...) │    │ │
-│   │     │     │   answer = pipeline.answer(query)            │    │ │
-│   │     │     └────────────────────────────────────────────  │    │ │
-│   │     └──────────────────────────────────────────────────  │    │ │
-│   │                                                                │ │
-│   └─ FlowViolation? signed attestation? provenance graph emitted ─┘ │
-└──────────────────────────────────────────────────────────────────────┘
+                              [lapidary finetune]
+                                       │
+                       ┌───────────────┴───────────────┐
+                       │                               │
+                  warm-start                      curriculum
+                  (mnemos +                       (4 stages:
+                   intent_hash                     scalars →
+                   neighbours)                     controller →
+                       │                           text → joint)
+                       │                               │
+                       └───────────────┬───────────────┘
+                                       │
+                            durable session (looper)
+                            cost ceiling (bankroll)
+                                       │
+                       ┌───────────────┴───────────────┐
+                       │      per-trial rollout         │
+                       │   ┌──────────────────────┐     │
+                       │   │ shell.LLMClient      │     │
+                       │   │ homer.Agent          │     │
+                       │   │ toolforge whitelist  │     │
+                       │   │ kiln sandbox         │     │
+                       │   │ manyworlds n-fork    │     │
+                       │   │ distill compaction   │     │
+                       │   │ ragdoctor QC signal  │     │
+                       │   │ cartograph file ctx  │     │
+                       │   │ stepback recorder    │     │
+                       │   │ flowwarden taint     │     │
+                       │   └──────────────────────┘     │
+                       └───────────────┬───────────────┘
+                                       │
+                       Reasoner (D → D')  ⟶ rerun regression
+                                       │           │
+                          groundwork-signed   adversary stage
+                                       │
+                                  auto_distill
+                              (mints task-local
+                               coevo PromptFamilies
+                               + atelier skills)
+                                       │
+                                FinetuneReport
+                            mirrored to mnemos
 ```
 
-For the integrated example, see `examples/integrated_demo.py`.
+The full per-sibling integration contract is in `papers/agent-h-arch/main.tex`
+Table 2 and `lapidary/100_STEPS.md` § Integration.
+
+### Concrete example
+
+```python
+from lapidary import (
+    Task, Searcher, finetune_agent, cometh_rollout, join_schemas,
+    cometh_policy_schema,
+)
+from homer import Agent
+
+def my_agent_step(state, family):
+    # one comet-h step — return (new_state, observation, cost, reward, done, tool_calls)
+    return Agent.from_state(state).step(family)
+
+policy_schema = cometh_policy_schema(
+    alphabet_names=("Generate", "Harden", "Settle", "Refactor"),
+    signal_names=("Bankroll", "Mnemos", "Crucible"),
+    tool_names=("grep", "edit", "run_tests"),
+)
+
+task = Task.load("~/.lapidary/refactor-auth-module")
+task.schema = join_schemas(task.schema, policy_schema)
+
+report = finetune_agent(
+    task,
+    rollout=cometh_rollout(my_agent_step,
+                           success_pred=lambda s: s.get("tests_pass")),
+    bankroll_usd=2.50,
+)
+print(report.final_defaults)        # the new typed defaults
+print(report.distilled_skills)      # task-local PromptFamilies minted
+print(report.transferred_from)      # which neighbour tasks warm-started this
+print(report.cost_usd)              # what the whole tune cost
+```
 
 ---
 
-## When to reach for which
+## Two-tier rationale
 
-| Situation | Reach for |
-|---|---|
-| Answer quality dropped after a deploy | `ragdoctor audit` |
-| You want to know if a different model/prompt would have helped on yesterday's run | `stepback replay` |
-| Bisect which step in a 30-step run introduced a cost spike or wrong answer | `stepback bisect` |
-| Compliance asks "prove this PII never reached the email tool" | `flowwarden attest` |
-| Your CI needs a security check on each PR for new agent code | `flowwarden static --sarif` |
-| Adversarial / OWASP-LLM-Top-10 coverage of your agent | `adversary` + `ragdoctor red-team` |
-| You want a durable, resumable control loop primitive | `looper` |
-| You need cross-session memory for an agent | `mnemos` |
-| You're spending too much per chat | `bankroll` |
-| You're exposing a new tool to an LLM and want type safety | `toolforge` |
-| You want a CI regression harness over agent traces | `rerun` |
-| You want a chat / serve / eval Agent that wires it all up | `homer` |
-| You're driving a *research* repo where theory, code, paper, and benchmarks must mature together | `coevo` + `groundwork` (via `homer research`) |
-| Your paper claims a number; you want to bind it to a runnable command | `groundwork record` |
-| You want to know which claims in your paper are unsupported | `groundwork audit` |
+Production agent platforms answer a different set of operational questions
+than research-software platforms. The **production tier** answers *"is this
+agent safe, fast, cheap, observable, restartable?"* The **Comet-H tier**
+answers *"can I make and ground a research claim from this run?"* The
+**finetuning tier** answers *"can I make this agent better at this specific
+task without drifting on the others?"*
+
+We keep the tiers separate because they have different consumers and
+different failure modes. We keep them in one stack because the contract
+(`lapidary`) is the shared object that lets them all speak about the same
+per-task knobs.
 
 ---
 
-## Quick install
-
-The components aren't on PyPI yet. Install each from its GitHub repo:
+## Get started
 
 ```bash
-# Production tier
-pip install "git+https://github.com/thehalleyyoung/ragdoctor.git"
-pip install "git+https://github.com/thehalleyyoung/stepback.git"
-pip install "git+https://github.com/thehalleyyoung/flowwarden.git"
-pip install "git+https://github.com/thehalleyyoung/looper.git"
-pip install "git+https://github.com/thehalleyyoung/mnemos.git"
-pip install "git+https://github.com/thehalleyyoung/bankroll.git"
-pip install "git+https://github.com/thehalleyyoung/toolforge.git"
-pip install "git+https://github.com/thehalleyyoung/adversary.git"
-pip install "git+https://github.com/thehalleyyoung/rerun.git"
-pip install "git+https://github.com/thehalleyyoung/homer.git"
+# Clone the meta-repo
+git clone https://github.com/thehalleyyoung/agent-h
+cd agent-h
 
-# Research-software tier (Comet-H)
-pip install "git+https://github.com/thehalleyyoung/coevo.git"
-pip install "git+https://github.com/thehalleyyoung/groundwork.git"
+# Install any subset (each is independently `pip install`-able from git+https)
+pip install git+https://github.com/thehalleyyoung/lapidary
+pip install git+https://github.com/thehalleyyoung/homer
+pip install git+https://github.com/thehalleyyoung/shell
+# ...
+
+# Or pull the whole stack
+make install-all       # installs all 19 subsystems in editable mode
 ```
 
-The `Makefile` in this repo has `make clone`, `make install`, `make test`,
-and `make demo` targets that automate the clone-and-editable-install flow
-for all twelve components.
+Then either:
+
+* **Build an agent** with `homer` + `shell` + `toolforge` + `bankroll`
+  (production tier).
+* **Conduct research** in `coevo` + `groundwork` (Comet-H tier).
+* **Finetune any agent for any task** with `lapidary finetune <task>`
+  (finetuning tier).
+
+The blog post [*Homer is not Claude Code — and that's the point*](blog/2026-05-14-homer-vs-claude-code.md)
+walks through the design choices that make this composition work where flat
+agent loops don't.
 
 ---
 
-## Documentation in this repo
+## Documentation
 
-- [`README.md`](README.md) — this file.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — shared design choices
-  (canonical encoding, signed append-only artifacts, content-addressed
-  storage, duck-typed adapters) and how the component schemas
-  interoperate.
-- [`docs/INTEGRATION.md`](docs/INTEGRATION.md) — concrete cookbook:
-  every place where two components hand data to each other, with code
-  snippets and pitfalls.
-- [`docs/RESEARCH_TIER.md`](docs/RESEARCH_TIER.md) — how `coevo` and
-  `groundwork` turn the production stack into a Comet-H research-software
-  orchestrator.
-- [`examples/integrated_demo.py`](examples/integrated_demo.py) — a
-  ~80-line runnable example using the production tier on one fake agent run.
+* [`papers/agent-h-arch/main.tex`](papers/agent-h-arch/main.tex) — the
+  contract paper, with the soundness theorem, the nine-axis subsumption
+  theorem, and the per-sibling integration table.
+* [`100_STEPS_PARITY.md`](100_STEPS_PARITY.md) — the meta-roadmap closing
+  the Claude-Code feature-parity gap.
+* [`docs/PROVIDERS.md`](docs/PROVIDERS.md) — canonical multi-provider LLM
+  strategy across the stack.
+* Each subsystem has its own `100_STEPS.md` roadmap and per-feature docs.
 
 ---
 
-## Status of each component
+## Contributing
 
-- **stepback** — alpha. Python recorder/replay/minimization stack is
-  the reference implementation with broad in-repo test coverage; Rust
-  core, WASM verifier, and language bindings exist as parallel work.
-- **ragdoctor** — usable today as a local diagnostic + repair toolkit.
-  Stable 8-axis audit, 4 preview axes, prescription/repair, framework
-  adapters, conformance tests, local HTTP server. No hosted service.
-- **flowwarden** — Python package is the public surface (labels, tool
-  annotations, static analysis, runtime `AgentRun`, marker sidechannel,
-  `.fw` policy, provenance graph, attestations, adapters, CLI). Rust
-  workspace and proxy are partial.
-- **looper, mnemos, bankroll, toolforge, adversary, rerun, homer** — alpha,
-  initial public release.
-- **coevo, groundwork** — alpha, initial public release. Reference
-  implementations of the Comet-H controller and evidence surface from
-  *"Theory Under Construction: Orchestrating Language Models for Research
-  Software Where the Specification Evolves"* (Young & Bjørner).
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Issues and discussions are
+welcome on each subsystem's repository; meta-issues (cross-cutting concerns,
+new subsystems, integration contracts) belong here.
 
 ---
 
 ## License
 
-Each component is Apache-2.0. This meta-repo is also Apache-2.0. See
-each component's `LICENSE` file for the canonical text.
+Apache-2.0 across the entire stack.
