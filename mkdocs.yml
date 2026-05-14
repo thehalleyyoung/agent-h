@@ -1,0 +1,13 @@
+site_name: agent-h
+site_description: A Claude-Code-class coding agent CLI built from the agent-h monorepo.
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Quickstart: quickstart.md
+  - Providers: PROVIDERS.md
+  - Extensiveness: extensiveness.md
+  - MCP: mcp.md
+  - Skills: skills.md
+  - Sub-repos: subrepos.md
